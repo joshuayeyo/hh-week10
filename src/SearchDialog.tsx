@@ -82,10 +82,30 @@ const TIME_SLOTS = [
 
 const PAGE_SIZE = 100;
 
-const fetchMajors = () => axios.get<Lecture[]>('/schedules-majors.json');
-const fetchLiberalArts = () => axios.get<Lecture[]>('/schedules-liberal-arts.json');
+// 캐싱 함수 (클로저 활용)
+const createCachedFetch = <T,>(fetchFn: () => Promise<T>) => {
+  let cache: T | null = null;
+  let pending: Promise<T> | null = null;
 
-// Promise.all 병렬 처리 + 중복 호출 제거 (6번 → 2번)
+  return async (): Promise<T> => {
+    if (cache) return cache;
+    if (pending) return pending;
+
+    pending = fetchFn();
+    cache = await pending;
+    pending = null;
+    return cache;
+  };
+};
+
+const fetchMajors = createCachedFetch(() =>
+  axios.get<Lecture[]>('/schedules-majors.json').then(res => res.data)
+);
+const fetchLiberalArts = createCachedFetch(() =>
+  axios.get<Lecture[]>('/schedules-liberal-arts.json').then(res => res.data)
+);
+
+// Promise.all 병렬 처리 + 중복 호출 제거 + 캐싱
 const fetchAllLectures = async () => {
   console.log('API Call 1 (majors)', performance.now());
   console.log('API Call 2 (liberalArts)', performance.now());
@@ -176,7 +196,7 @@ const SearchDialog = ({ searchInfo, onClose }: Props) => {
       const end = performance.now();
       console.log('모든 API 호출 완료 ', end)
       console.log('API 호출에 걸린 시간(ms): ', end - start)
-      setLectures(results.flatMap(result => result.data));
+      setLectures(results.flat());
     })
   }, []);
 
