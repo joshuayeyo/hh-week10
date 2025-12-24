@@ -1,4 +1,4 @@
-import React, { createContext, PropsWithChildren, useContext, useState } from "react";
+import React, { createContext, PropsWithChildren, useCallback, useContext, useMemo, useState } from "react";
 import { Schedule } from "./types.ts";
 import dummyScheduleMap from "./dummyScheduleMap.ts";
 
@@ -17,11 +17,46 @@ export const useScheduleContext = () => {
   return context;
 };
 
+// 특정 시간표만 구독하는 커스텀 훅
+export const useSchedule = (tableId: string) => {
+  const { schedulesMap, setSchedulesMap } = useScheduleContext();
+
+  const schedules = useMemo(
+    () => schedulesMap[tableId] || [],
+    [schedulesMap, tableId]
+  );
+
+  const updateSchedules = useCallback(
+    (newSchedules: Schedule[] | ((prev: Schedule[]) => Schedule[])) => {
+      setSchedulesMap(prev => ({
+        ...prev,
+        [tableId]: typeof newSchedules === 'function'
+          ? newSchedules(prev[tableId] || [])
+          : newSchedules
+      }));
+    },
+    [tableId, setSchedulesMap]
+  );
+
+  return { schedules, updateSchedules };
+};
+
+// 시간표 ID 목록만 구독하는 훅
+export const useScheduleIds = () => {
+  const { schedulesMap } = useScheduleContext();
+  return useMemo(() => Object.keys(schedulesMap), [schedulesMap]);
+};
+
 export const ScheduleProvider = ({ children }: PropsWithChildren) => {
   const [schedulesMap, setSchedulesMap] = useState<Record<string, Schedule[]>>(dummyScheduleMap);
 
+  const value = useMemo(
+    () => ({ schedulesMap, setSchedulesMap }),
+    [schedulesMap]
+  );
+
   return (
-    <ScheduleContext.Provider value={{ schedulesMap, setSchedulesMap }}>
+    <ScheduleContext.Provider value={value}>
       {children}
     </ScheduleContext.Provider>
   );
